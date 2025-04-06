@@ -1,7 +1,10 @@
-#CI/CD Pipeline
 name: Web3 DevOps Pipeline
 
-on: [push]
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
   deploy:
@@ -9,13 +12,19 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       
-      - name: Set up Kubeconfig
-        run: echo "${{ secrets.KUBE_CONFIG }}" > kubeconfig.yaml
-        
-      - name: Deploy Blockchain Node
-        run: kubectl apply -f blockchain-node/k8s-deployment.yaml
-        
-      - name: Deploy Monitoring
+      - name: Set up Kubectl
+        uses: azure/setup-kubectl@v3
+      
+      - name: Deploy to Kubernetes
         run: |
-          kubectl apply -f monitoring/prometheus-config.yml
-          kubectl apply -f monitoring/grafana-dashboard.json
+          kubectl apply -f blockchain-node/k8s-deployment.yaml
+          kubectl apply -f monitoring/
+
+      - name: Verify Deployment
+        run: |
+            kubectl rollout status deployment/geth-node -n default
+            kubectl rollout status deployment/prometheus -n monitoring
+            kubectl rollout status deployment/grafana -n monitoring
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+          
