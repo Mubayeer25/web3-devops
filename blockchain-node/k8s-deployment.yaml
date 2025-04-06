@@ -19,3 +19,21 @@ spec:
           - "--metrics"
           - "--metrics.addr=0.0.0.0"
           - "--syncmode=light"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: geth-node
+spec:
+  type: NodePort
+  selector:
+    app: geth
+  ports:
+    - name: metrics
+      port: 6060
+      targetPort: 6060
+      nodePort: 30606
+    - name: rpc
+      port: 8545
+      targetPort: 8545
+      nodePort: 30845

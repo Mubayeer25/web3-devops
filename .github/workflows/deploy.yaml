@@ -21,24 +21,35 @@ jobs:
           minikube start --driver=docker --memory=4096 --cpus=2
           minikube status
 
-      - name: Verify Dockerfiles exist
+      - name: Verify Required Files
         run: |
-          ls -la blockchain-node/Dockerfile
-          ls -la api/Dockerfile
+          if [ ! -f "blockchain-node/Dockerfile" ]; then
+            echo "::error::Missing blockchain-node/Dockerfile"
+            exit 1
+          fi
+          if [ ! -f "api/Dockerfile" ]; then
+            echo "::warning::Creating default api/Dockerfile"
+            mkdir -p api
+            cat > api/Dockerfile << 'EOL'
+            FROM node:18-alpine
+            WORKDIR /app
+            COPY package*.json ./
+            RUN npm install
+            COPY . .
+            EXPOSE 3000
+            CMD ["node", "server.js"]
+            EOL
+          fi
+          ls -la */Dockerfile
 
-      - name: Build Blockchain Node
+      - name: Build Docker Images
         run: |
           eval $(minikube docker-env)
           docker build -t geth-node ./blockchain-node
-          docker images
-
-      - name: Build Web3 API
-        run: |
-          eval $(minikube docker-env)
           docker build -t web3-api ./api
           docker images
 
-      - name: Create monitoring namespace
+      - name: Create Monitoring Namespace
         run: kubectl apply -f monitoring/init/00-namespace.yaml
 
       - name: Deploy Monitoring Stack
@@ -57,33 +68,23 @@ jobs:
 
       - name: Verify Deployments
         run: |
-          kubectl rollout status deployment/geth-node -n default --timeout=90s
-          kubectl rollout status deployment/prometheus -n monitoring --timeout=90s
-          kubectl rollout status deployment/grafana -n monitoring --timeout=90s
+          kubectl rollout status deployment/geth-node --timeout=120s
+          kubectl rollout status deployment/web3-api --timeout=120s
+          kubectl rollout status deployment/prometheus -n monitoring --timeout=120s
+          kubectl rollout status deployment/grafana -n monitoring --timeout=120s
 
-      - name: Get Service URLs
+      - name: Expose Services
         run: |
-          echo "Geth Node RPC: $(minikube service geth-node --url -n default)"
-          echo "Prometheus: $(minikube service prometheus --url -n monitoring)"
-          echo "Grafana: $(minikube service grafana --url -n monitoring)"
+          kubectl patch svc geth-node -p '{"spec":{"type":"NodePort"}}'
+          kubectl patch svc web3-api -p '{"spec":{"type":"NodePort"}}'
+          kubectl patch svc grafana -n monitoring -p '{"spec":{"type":"NodePort"}}'
+          kubectl patch svc prometheus -n monitoring -p '{"spec":{"type":"NodePort"}}'
+          minikube service list
 
-          - name: Verify Required Files
-          run: |
-            if [ ! -f "blockchain-node/Dockerfile" ]; then
-              echo "::error::Missing blockchain-node/Dockerfile"
-              exit 1
-            fi
-            if [ ! -f "api/Dockerfile" ]; then
-              echo "::warning::Creating default api/Dockerfile"
-              mkdir -p api
-              cat > api/Dockerfile << 'EOL'
-              FROM node:18-alpine
-              WORKDIR /app
-              COPY package*.json ./
-              RUN npm install
-              COPY . .
-              EXPOSE 3000
-              CMD ["node", "server.js"]
-              EOL
-            fi
-            ls -la */Dockerfile
+      - name: Get Access URLs
+        run: |
+          echo "Geth Node RPC: http://$(minikube ip):$(kubectl get svc geth-node -o jsonpath='{.spec.ports[?(@.name=="rpc")].nodePort}')"
+          echo "Web3 API: http://$(minikube ip):$(kubectl get svc web3-api -o jsonpath='{.spec.ports[0].nodePort}')"
+          echo "Prometheus: http://$(minikube ip):$(kubectl get svc prometheus -n monitoring -o jsonpath='{.spec.ports[0].nodePort}')"
+          echo "Grafana: http://$(minikube ip):$(kubectl get svc grafana -n monitoring -o jsonpath='{.spec.ports[0].nodePort}')"
+          echo "Grafana Credentials: admin/admin123"
