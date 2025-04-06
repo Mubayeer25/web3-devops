@@ -25,3 +25,13 @@ jobs:
           kubectl apply -f blockchain-node/k8s-deployment.yaml
           kubectl apply -f monitoring/
           kubectl get all -A
+
+      - name: Deploy Monitoring Stack
+        run: |
+            # Apply in correct order
+            kubectl apply -f monitoring/init/  # Namespace first
+            kubectl apply -f monitoring/      # Other resources
+            
+            # Verify
+            kubectl get ns monitoring
+            kubectl get all -n monitoring

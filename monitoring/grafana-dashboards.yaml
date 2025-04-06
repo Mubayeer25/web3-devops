@@ -6,7 +6,7 @@ metadata:
   labels:
     grafana_dashboard: "1"
 data:
-  blockchain-dashboard.json: |
+  blockchain-dashboard.json: |-
     {
       "title": "Blockchain Dashboard",
       "panels": [
@@ -14,28 +14,9 @@ data:
           "title": "Node Sync Status",
           "type": "gauge",
           "gridPos": {"x": 0, "y": 0, "w": 8, "h": 6},
-          "targets": [
-            {
-              "expr": "eth_sync_current_block / eth_sync_highest_block * 100",
-              "legendFormat": "Sync Progress"
-            }
-          ]
-        },
-        {
-          "title": "Blockchain Metrics",
-          "type": "graph",
-          "gridPos": {"x": 8, "y": 0, "w": 16, "h": 6},
-          "targets": [
-            {
-              "expr": "rate(eth_block_number[1m])",
-              "legendFormat": "Blocks/sec"
-            }
-          ]
+          "targets": [{
+            "expr": "eth_sync_current_block / eth_sync_highest_block * 100"
+          }]
         }
       ]
     }
-kind: ConfigMap
-metadata:
-  creationTimestamp: null
-  name: grafana-dashboards
-  namespace: monitoring
