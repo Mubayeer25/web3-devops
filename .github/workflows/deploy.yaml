@@ -33,14 +33,14 @@ jobs:
           if [ ! -f "api/Dockerfile" ]; then
             mkdir -p api
             cat > api/Dockerfile << 'EOF'
-            FROM node:18-alpine
-            WORKDIR /app
-            COPY package*.json ./
-            RUN npm install
-            COPY . .
-            EXPOSE 3000
-            CMD ["node", "server.js"]
-            EOF
+FROM node:18-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+EXPOSE 3000
+CMD ["node", "server.js"]
+EOF
             echo "Created default api/Dockerfile"
           fi
           
