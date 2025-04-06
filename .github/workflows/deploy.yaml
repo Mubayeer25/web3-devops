@@ -1,37 +1,60 @@
-name: Web3 DevOps Pipeline
+name: Web3 DevOps CI/CD Pipeline
 
-on: [push]
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      # Set up Minikube
-      - name: Start Minikube
+      - name: Set up Minikube
         run: |
           sudo apt-get update -qq
           sudo apt-get install -qq conntrack
           curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
           sudo install minikube-linux-amd64 /usr/local/bin/minikube
-          minikube start --driver=docker
+          minikube start --driver=docker --memory=4096 --cpus=2
           minikube status
 
-      # Build and deploy
-      - name: Deploy Blockchain Stack
+      - name: Build Docker images
         run: |
           eval $(minikube docker-env)
-          kubectl apply -f blockchain-node/k8s-deployment.yaml
-          kubectl apply -f monitoring/
-          kubectl get all -A
+          docker build -t geth-node ./blockchain-node
+          docker build -t web3-api ./api
 
       - name: Deploy Monitoring Stack
         run: |
-            # Apply in correct order
-            kubectl apply -f monitoring/init/  # Namespace first
-            kubectl apply -f monitoring/      # Other resources
-            
-            # Verify
-            kubectl get ns monitoring
-            kubectl get all -n monitoring
+          # Create namespace first
+          kubectl apply -f monitoring/init/00-namespace.yaml
+          
+          # Apply monitoring components
+          kubectl apply -f monitoring/prometheus-config.yaml
+          kubectl apply -f monitoring/grafana-dashboards.yaml
+          kubectl apply -f monitoring/grafana-provisioning.yaml
+          kubectl apply -f monitoring/grafana.yaml
+
+      - name: Deploy Blockchain Stack
+        run: |
+          kubectl apply -f blockchain-node/k8s-deployment.yaml
+          kubectl apply -f api/k8s-deployment.yaml
+          
+          # Verify deployments
+          kubectl rollout status deployment/geth-node -n default
+          kubectl rollout status deployment/prometheus -n monitoring
+          kubectl rollout status deployment/grafana -n monitoring
+
+      - name: Get Service URLs
+        run: |
+          echo "Geth Node RPC: $(minikube service geth-node --url -n default)"
+          echo "Prometheus: $(minikube service prometheus --url -n monitoring)"
+          echo "Grafana: $(minikube service grafana --url -n monitoring)"
+          
+      - name: Store Grafana credentials
+        run: |
+          echo "GRAFANA_USERNAME=admin" >> $GITHUB_ENV
+          echo "GRAFANA_PASSWORD=admin123" >> $GITHUB_ENV
