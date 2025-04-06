@@ -11,9 +11,6 @@ spec:
     metadata:
       labels:
         app: geth
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "6060"
     spec:
       containers:
       - name: geth
@@ -22,23 +19,3 @@ spec:
           - "--metrics"
           - "--metrics.addr=0.0.0.0"
           - "--syncmode=light"
-          - "--http"
-          - "--http.addr=0.0.0.0"
-        ports:
-        - containerPort: 6060 # Metrics port
-        - containerPort: 8545 # RPC port
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: geth-node
-spec:
-  selector:
-    app: geth
-  ports:
-    - name: metrics
-      port: 6060
-      targetPort: 6060
-    - name: rpc
-      port: 8545
-      targetPort: 8545
