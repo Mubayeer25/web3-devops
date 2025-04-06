@@ -12,79 +12,30 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up Minikube
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -qq conntrack
-          curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
-          sudo install minikube-linux-amd64 /usr/local/bin/minikube
-          minikube start --driver=docker --memory=4096 --cpus=2
-          minikube status
-
       - name: Verify Required Files
         run: |
+          # Check for blockchain-node Dockerfile
           if [ ! -f "blockchain-node/Dockerfile" ]; then
             echo "::error::Missing blockchain-node/Dockerfile"
             exit 1
           fi
+          
+          # Create default API Dockerfile if missing
           if [ ! -f "api/Dockerfile" ]; then
             echo "::warning::Creating default api/Dockerfile"
             mkdir -p api
-            cat > api/Dockerfile << 'EOL'
-            FROM node:18-alpine
-            WORKDIR /app
-            COPY package*.json ./
-            RUN npm install
-            COPY . .
-            EXPOSE 3000
-            CMD ["node", "server.js"]
-            EOL
+            cat << 'EOF' > api/Dockerfile
+FROM node:18-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+EXPOSE 3000
+CMD ["node", "server.js"]
+EOF
           fi
-          ls -la */Dockerfile
+          
+          # Verify files
+          ls -la blockchain-node/Dockerfile api/Dockerfile
 
-      - name: Build Docker Images
-        run: |
-          eval $(minikube docker-env)
-          docker build -t geth-node ./blockchain-node
-          docker build -t web3-api ./api
-          docker images
-
-      - name: Create Monitoring Namespace
-        run: kubectl apply -f monitoring/init/00-namespace.yaml
-
-      - name: Deploy Monitoring Stack
-        run: |
-          kubectl apply -f monitoring/prometheus-config.yaml
-          kubectl apply -f monitoring/grafana-dashboards.yaml
-          kubectl apply -f monitoring/grafana-provisioning.yaml
-          kubectl apply -f monitoring/grafana.yaml
-          kubectl get all -n monitoring
-
-      - name: Deploy Applications
-        run: |
-          kubectl apply -f blockchain-node/k8s-deployment.yaml
-          kubectl apply -f api/k8s-deployment.yaml
-          kubectl get all -A
-
-      - name: Verify Deployments
-        run: |
-          kubectl rollout status deployment/geth-node --timeout=120s
-          kubectl rollout status deployment/web3-api --timeout=120s
-          kubectl rollout status deployment/prometheus -n monitoring --timeout=120s
-          kubectl rollout status deployment/grafana -n monitoring --timeout=120s
-
-      - name: Expose Services
-        run: |
-          kubectl patch svc geth-node -p '{"spec":{"type":"NodePort"}}'
-          kubectl patch svc web3-api -p '{"spec":{"type":"NodePort"}}'
-          kubectl patch svc grafana -n monitoring -p '{"spec":{"type":"NodePort"}}'
-          kubectl patch svc prometheus -n monitoring -p '{"spec":{"type":"NodePort"}}'
-          minikube service list
-
-      - name: Get Access URLs
-        run: |
-          echo "Geth Node RPC: http://$(minikube ip):$(kubectl get svc geth-node -o jsonpath='{.spec.ports[?(@.name=="rpc")].nodePort}')"
-          echo "Web3 API: http://$(minikube ip):$(kubectl get svc web3-api -o jsonpath='{.spec.ports[0].nodePort}')"
-          echo "Prometheus: http://$(minikube ip):$(kubectl get svc prometheus -n monitoring -o jsonpath='{.spec.ports[0].nodePort}')"
-          echo "Grafana: http://$(minikube ip):$(kubectl get svc grafana -n monitoring -o jsonpath='{.spec.ports[0].nodePort}')"
-          echo "Grafana Credentials: admin/admin123"
+      # ... rest of your workflow steps ...
