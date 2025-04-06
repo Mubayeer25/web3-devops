@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: monitoring
+  name: grafana-dashboards
+  namespace: monitoring  # <-- Add this line
+  labels:
+    grafana_dashboard: "1"
+data:
+  blockchain-dashboard.json: |-
+    {
+      "title": "Blockchain Dashboard",
+      "panels": [...]
+    }
