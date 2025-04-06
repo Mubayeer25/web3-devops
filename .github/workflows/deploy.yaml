@@ -66,3 +66,24 @@ jobs:
           echo "Geth Node RPC: $(minikube service geth-node --url -n default)"
           echo "Prometheus: $(minikube service prometheus --url -n monitoring)"
           echo "Grafana: $(minikube service grafana --url -n monitoring)"
+
+          - name: Verify Required Files
+          run: |
+            if [ ! -f "blockchain-node/Dockerfile" ]; then
+              echo "::error::Missing blockchain-node/Dockerfile"
+              exit 1
+            fi
+            if [ ! -f "api/Dockerfile" ]; then
+              echo "::warning::Creating default api/Dockerfile"
+              mkdir -p api
+              cat > api/Dockerfile << 'EOL'
+              FROM node:18-alpine
+              WORKDIR /app
+              COPY package*.json ./
+              RUN npm install
+              COPY . .
+              EXPOSE 3000
+              CMD ["node", "server.js"]
+              EOL
+            fi
+            ls -la */Dockerfile
